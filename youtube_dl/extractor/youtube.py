@@ -2769,6 +2769,13 @@ class YoutubeTabIE(YoutubeBaseInfoExtractor):
                     uploader['uploader_url'] = urljoin(
                         'https://www.youtube.com/',
                         try_get(owner, lambda x: x['navigationEndpoint']['browseEndpoint']['canonicalBaseUrl'], compat_str))
+        else:
+            render = try_get(
+                    data, lambda x: x['metadata']['channelMetadataRenderer'], dict)
+            if render:
+                uploader['uploader'] = render.get('title')
+                uploader['uploader_url'] = render.get('vanityChannelUrl')
+                uploader['uploader_id'] = render.get('externalId')
         return uploader
 
     @staticmethod
