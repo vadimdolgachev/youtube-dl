@@ -2563,7 +2563,7 @@ class YoutubeTabIE(YoutubeBaseInfoExtractor):
             ctp = continuation_ep.get('clickTrackingParams')
             return YoutubeTabIE._build_continuation_query(continuation, ctp)
 
-    def _entries(self, tab, item_id, webpage):
+    def _entries(self, tab, item_id, webpage, populate_until_video_id):
         tab_content = try_get(tab, lambda x: x['content'], dict)
         if not tab_content:
             return
@@ -2591,6 +2591,8 @@ class YoutubeTabIE(YoutubeBaseInfoExtractor):
                     renderer = isr_content.get('gridRenderer')
                     if renderer:
                         for entry in self._grid_entries(renderer):
+                            if entry.get('id') == populate_until_video_id:
+                                return
                             yield entry
                         continuation = self._extract_continuation(renderer)
                         continue
@@ -2714,6 +2716,8 @@ class YoutubeTabIE(YoutubeBaseInfoExtractor):
                 if renderer:
                     grid_renderer = {'items': continuation_items}
                     for entry in self._grid_entries(grid_renderer):
+                        if entry.get('id') == populate_until_video_id:
+                            return
                         yield entry
                     continuation = self._extract_continuation(grid_renderer)
                     continue
@@ -2796,12 +2800,12 @@ class YoutubeTabIE(YoutubeBaseInfoExtractor):
                 alerts.append(text)
         return '\n'.join(alerts)
 
-    def _extract_from_tabs(self, item_id, webpage, data, tabs):
+    def _extract_from_tabs(self, item_id, webpage, data, tabs, populate_until_video_id):
         selected_tab = self._extract_selected_tab(tabs)
         renderer = try_get(
             data, lambda x: x['metadata']['channelMetadataRenderer'], dict)
         playlist_id = item_id
-        title = description = None
+        title = description = keywords = None
         if renderer:
             channel_title = renderer.get('title') or item_id
             tab_title = selected_tab.get('title')
@@ -2810,6 +2814,7 @@ class YoutubeTabIE(YoutubeBaseInfoExtractor):
                 title += ' - %s' % tab_title
             description = renderer.get('description')
             playlist_id = renderer.get('externalId')
+            keywords = renderer.get('keywords')
         else:
             renderer = try_get(
                 data, lambda x: x['metadata']['playlistMetadataRenderer'], dict)
@@ -2891,7 +2896,7 @@ class YoutubeTabIE(YoutubeBaseInfoExtractor):
         tabs = try_get(
             data, lambda x: x['contents']['twoColumnBrowseResultsRenderer']['tabs'], list)
         if tabs:
-            return self._extract_from_tabs(item_id, webpage, data, tabs)
+            return self._extract_from_tabs(item_id, webpage, data, tabs, self._downloader.params.get('populate_until_video_id'))
         playlist = try_get(
             data, lambda x: x['contents']['twoColumnWatchNextResults']['playlist']['playlist'], dict)
         if playlist:
