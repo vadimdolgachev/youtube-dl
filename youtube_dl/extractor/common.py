@@ -968,7 +968,8 @@ class InfoExtractor(object):
             urls, playlist_id=playlist_id, playlist_title=playlist_title)
 
     @staticmethod
-    def playlist_result(entries, playlist_id=None, playlist_title=None, playlist_description=None):
+    def playlist_result(entries, playlist_id=None, playlist_title=None, playlist_description=None,
+                        playlist_avatars=None, playlist_keywords=None, playlist_thumbnails=None):
         """Returns a playlist"""
         video_info = {'_type': 'playlist',
                       'entries': entries}
@@ -978,6 +979,12 @@ class InfoExtractor(object):
             video_info['title'] = playlist_title
         if playlist_description:
             video_info['description'] = playlist_description
+        if playlist_avatars:
+            video_info['avatars'] = playlist_avatars
+        if playlist_keywords:
+            video_info['keywords'] = playlist_keywords
+        if playlist_thumbnails:
+            video_info['thumbnails'] = playlist_thumbnails
         return video_info
 
     def _search_regex(self, pattern, string, name, default=NO_DEFAULT, fatal=True, flags=0, group=None):

@@ -307,6 +307,19 @@ class YoutubeBaseInfoExtractor(InfoExtractor):
                 r'ytcfg\.set\s*\(\s*({.+?})\s*\)\s*;', webpage, 'ytcfg',
                 default='{}'), video_id, fatal=False) or {}
 
+    @staticmethod
+    def _extract_thumbnails(data):
+        thumbnails = []
+        for thumbnail in data:
+            if not thumbnail.get('url'):
+                continue
+            thumbnails.append({
+                'url': thumbnail.get('url'),
+                'height': int_or_none(thumbnail.get('height')),
+                'width': int_or_none(thumbnail.get('width')),
+            })
+        return thumbnails
+
     def _extract_video(self, renderer):
         video_id = renderer['videoId']
         title = try_get(
@@ -327,6 +340,13 @@ class YoutubeBaseInfoExtractor(InfoExtractor):
             renderer,
             (lambda x: x['ownerText']['runs'][0]['text'],
              lambda x: x['shortBylineText']['runs'][0]['text']), compat_str)
+        thumbnails = self._extract_thumbnails(try_get(renderer, lambda x: x['thumbnail']['thumbnails'], list) or [])
+        uploader_url = try_get(
+            renderer, lambda x: x['shortBylineText']['runs'][0]['navigationEndpoint']['commandMetadata']
+                                 ['webCommandMetadata']['url'], str)
+        if uploader_url:
+            uploader_url = 'https://www.youtube.com' + uploader_url
+        published_time = try_get(renderer, lambda x: x['publishedTimeText']['simpleText'], str)
         return {
             '_type': 'url',
             'ie_key': YoutubeIE.ie_key(),
@@ -2772,10 +2792,29 @@ class YoutubeTabIE(YoutubeBaseInfoExtractor):
                     data, lambda x: x['header']['hashtagHeaderRenderer'], dict)
                 if renderer:
                     title = try_get(renderer, lambda x: x['hashtag']['simpleText'])
+        avatars = self._extract_thumbnails(try_get(renderer, lambda x: x['avatar']['thumbnails'], list) or [])
+        if not avatars:
+            avatars = self._extract_thumbnails(
+                try_get(data, lambda x: x['sidebar']['playlistSidebarRenderer']['items'][1]
+                                         ['playlistSidebarSecondaryInfoRenderer']['videoOwner']['videoOwnerRenderer']
+                                         ['thumbnail']['thumbnails'], list) or [])
+        playlist_thumbnails = self._extract_thumbnails(
+            try_get(data, lambda x: x['sidebar']['playlistSidebarRenderer']['items'][0]
+                                     ['playlistSidebarPrimaryInfoRenderer']['thumbnailRenderer']
+                                     ['playlistVideoThumbnailRenderer']['thumbnail']['thumbnails'], list) or [])
+        if not playlist_thumbnails:
+            playlist_thumbnails = self._extract_thumbnails(
+                try_get(data, lambda x: x['sidebar']['playlistSidebarRenderer']['items'][0]
+                                         ['playlistSidebarPrimaryInfoRenderer']['thumbnailRenderer']
+                                         ['playlistCustomThumbnailRenderer']['thumbnail']['thumbnails'], list) or [])
         playlist = self.playlist_result(
-            self._entries(selected_tab, item_id, webpage),
+            self._entries(selected_tab, item_id, webpage, populate_until_video_id),
             playlist_id=playlist_id, playlist_title=title,
-            playlist_description=description)
+            playlist_description=description,
+            playlist_avatars=avatars,
+            playlist_keywords=keywords,
+            playlist_thumbnails=playlist_thumbnails
+        )
         playlist.update(self._extract_uploader(data))
         return playlist
 
