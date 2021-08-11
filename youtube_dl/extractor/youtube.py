@@ -362,6 +362,9 @@ class YoutubeBaseInfoExtractor(InfoExtractor):
             'duration': duration,
             'view_count': view_count,
             'uploader': uploader,
+            'thumbnails': thumbnails,
+            'uploader_url': uploader_url,
+            'published_time_ago': published_time
         }
 
 
