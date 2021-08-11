@@ -2609,6 +2609,7 @@ class YoutubeDLHandler(compat_urllib_request.HTTPHandler):
             if h.capitalize() not in req.headers:
                 req.add_header(h, v)
 
+        req.headers["Accept-language"] = self._params.get("accept_language", req.headers["Accept-language"])
         req.headers = handle_youtubedl_headers(req.headers)
 
         if sys.version_info < (2, 7) and '#' in req.get_full_url():
