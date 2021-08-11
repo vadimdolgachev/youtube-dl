@@ -1519,7 +1519,7 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
                 'player', {'videoId': video_id}, video_id)
 
         playability_status = player_response.get('playabilityStatus') or {}
-        if playability_status.get('reason') == 'Sign in to confirm your age':
+        if playability_status.get('status') == 'LOGIN_REQUIRED':
             pr = self._parse_json(try_get(compat_parse_qs(
                 self._download_webpage(
                     base_url + 'get_video_info', video_id,
@@ -1567,6 +1567,16 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
             or search_meta(['og:title', 'twitter:title', 'title'])
         video_description = video_details.get('shortDescription')
 
+        data = self._extract_yt_initial_variable(
+            webpage, self._YT_INITIAL_DATA_RE, video_id,
+            'yt initial data')
+        has_youtubekids = None
+        if data:
+            has_youtubekids = True if try_get(data, lambda x: x['contents']['twoColumnWatchNextResults']['results']
+                                                               ['results']['contents'][1]['videoSecondaryInfoRenderer']
+                                                               ['metadataRowContainer']['metadataRowContainerRenderer']
+                                                               ['rows'][0]['richMetadataRowRenderer']['contents'][0]
+                                                               ['richMetadataRenderer']['title'], dict) is not None else None
         if not smuggled_data.get('force_singlefeed', False):
             if not self._downloader.params.get('noplaylist'):
                 multifeed_metadata_list = try_get(
@@ -1820,6 +1830,8 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
             'categories': [category] if category else None,
             'tags': keywords,
             'is_live': is_live,
+            'has_youtubekids': has_youtubekids,
+            'is_login_required': playability_status.get('status') == 'LOGIN_REQUIRED'
         }
 
         pctr = try_get(
