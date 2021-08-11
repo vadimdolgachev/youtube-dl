@@ -1569,7 +1569,7 @@ class YoutubeDL(object):
         else:
             formats = info_dict['formats']
 
-        if not formats:
+        if not self.params.get('extract_flat') and not formats:
             raise ExtractorError('No video formats found!')
 
         def is_wellformed(f):
@@ -1634,7 +1634,7 @@ class YoutubeDL(object):
 
         # TODO Central sorting goes here
 
-        if formats[0] is not info_dict:
+        if not self.params.get('extract_flat') and formats[0] is not info_dict:
             # only set the 'formats' fields if the original info_dict list them
             # otherwise we end up with a circular reference, the first (and unique)
             # element in the 'formats' field in info_dict is info_dict itself,
@@ -1679,7 +1679,7 @@ class YoutubeDL(object):
         }
 
         formats_to_download = list(format_selector(ctx))
-        if not formats_to_download:
+        if not self.params.get('extract_flat') and not formats_to_download:
             raise ExtractorError('requested format not available',
                                  expected=True)
 
@@ -1691,7 +1691,8 @@ class YoutubeDL(object):
                 new_info.update(format)
                 self.process_info(new_info)
         # We update the info dict with the best quality format (backwards compatibility)
-        info_dict.update(formats_to_download[-1])
+        if not self.params.get('extract_flat'):
+            info_dict.update(formats_to_download[-1])
         return info_dict
 
     def process_subtitles(self, video_id, normal_subtitles, automatic_captions):

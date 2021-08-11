@@ -1611,128 +1611,129 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
         streaming_data = player_response.get('streamingData') or {}
         streaming_formats = streaming_data.get('formats') or []
         streaming_formats.extend(streaming_data.get('adaptiveFormats') or [])
-        for fmt in streaming_formats:
-            if fmt.get('targetDurationSec') or fmt.get('drmFamilies'):
-                continue
-
-            itag = str_or_none(fmt.get('itag'))
-            quality = fmt.get('quality')
-            if itag and quality:
-                itag_qualities[itag] = quality
-            # FORMAT_STREAM_TYPE_OTF(otf=1) requires downloading the init fragment
-            # (adding `&sq=0` to the URL) and parsing emsg box to determine the
-            # number of fragment that would subsequently requested with (`&sq=N`)
-            if fmt.get('type') == 'FORMAT_STREAM_TYPE_OTF':
-                continue
-
-            fmt_url = fmt.get('url')
-            if not fmt_url:
-                sc = compat_parse_qs(fmt.get('signatureCipher'))
-                fmt_url = url_or_none(try_get(sc, lambda x: x['url'][0]))
-                encrypted_sig = try_get(sc, lambda x: x['s'][0])
-                if not (sc and fmt_url and encrypted_sig):
+        if not self._downloader.params.get('extract_flat'):
+            for fmt in streaming_formats:
+                if fmt.get('targetDurationSec') or fmt.get('drmFamilies'):
                     continue
-                if not player_url:
-                    if not webpage:
+
+                itag = str_or_none(fmt.get('itag'))
+                quality = fmt.get('quality')
+                if itag and quality:
+                    itag_qualities[itag] = quality
+                # FORMAT_STREAM_TYPE_OTF(otf=1) requires downloading the init fragment
+                # (adding `&sq=0` to the URL) and parsing emsg box to determine the
+                # number of fragment that would subsequently requested with (`&sq=N`)
+                if fmt.get('type') == 'FORMAT_STREAM_TYPE_OTF':
+                    continue
+
+                fmt_url = fmt.get('url')
+                if not fmt_url:
+                    sc = compat_parse_qs(fmt.get('signatureCipher'))
+                    fmt_url = url_or_none(try_get(sc, lambda x: x['url'][0]))
+                    encrypted_sig = try_get(sc, lambda x: x['s'][0])
+                    if not (sc and fmt_url and encrypted_sig):
                         continue
-                    player_url = self._search_regex(
-                        r'"(?:PLAYER_JS_URL|jsUrl)"\s*:\s*"([^"]+)"',
-                        webpage, 'player URL', fatal=False)
-                if not player_url:
-                    continue
-                signature = self._decrypt_signature(sc['s'][0], video_id, player_url)
-                sp = try_get(sc, lambda x: x['sp'][0]) or 'signature'
-                fmt_url += '&' + sp + '=' + signature
+                    if not player_url:
+                        if not webpage:
+                            continue
+                        player_url = self._search_regex(
+                            r'"(?:PLAYER_JS_URL|jsUrl)"\s*:\s*"([^"]+)"',
+                            webpage, 'player URL', fatal=False)
+                    if not player_url:
+                        continue
+                    signature = self._decrypt_signature(sc['s'][0], video_id, player_url)
+                    sp = try_get(sc, lambda x: x['sp'][0]) or 'signature'
+                    fmt_url += '&' + sp + '=' + signature
 
-            if itag:
-                itags.append(itag)
-            tbr = float_or_none(
-                fmt.get('averageBitrate') or fmt.get('bitrate'), 1000)
-            dct = {
-                'asr': int_or_none(fmt.get('audioSampleRate')),
-                'filesize': int_or_none(fmt.get('contentLength')),
-                'format_id': itag,
-                'format_note': fmt.get('qualityLabel') or quality,
-                'fps': int_or_none(fmt.get('fps')),
-                'height': int_or_none(fmt.get('height')),
-                'quality': q(quality),
-                'tbr': tbr,
-                'url': fmt_url,
-                'width': fmt.get('width'),
-            }
-            mimetype = fmt.get('mimeType')
-            if mimetype:
-                mobj = re.match(
-                    r'((?:[^/]+)/(?:[^;]+))(?:;\s*codecs="([^"]+)")?', mimetype)
-                if mobj:
-                    dct['ext'] = mimetype2ext(mobj.group(1))
-                    dct.update(parse_codecs(mobj.group(2)))
-            no_audio = dct.get('acodec') == 'none'
-            no_video = dct.get('vcodec') == 'none'
-            if no_audio:
-                dct['vbr'] = tbr
-            if no_video:
-                dct['abr'] = tbr
-            if no_audio or no_video:
-                dct['downloader_options'] = {
-                    # Youtube throttles chunks >~10M
-                    'http_chunk_size': 10485760,
-                }
-                if dct.get('ext'):
-                    dct['container'] = dct['ext'] + '_dash'
-            formats.append(dct)
-
-        hls_manifest_url = streaming_data.get('hlsManifestUrl')
-        if hls_manifest_url:
-            for f in self._extract_m3u8_formats(
-                    hls_manifest_url, video_id, 'mp4', fatal=False):
-                itag = self._search_regex(
-                    r'/itag/(\d+)', f['url'], 'itag', default=None)
                 if itag:
-                    f['format_id'] = itag
-                formats.append(f)
+                    itags.append(itag)
+                tbr = float_or_none(
+                    fmt.get('averageBitrate') or fmt.get('bitrate'), 1000)
+                dct = {
+                    'asr': int_or_none(fmt.get('audioSampleRate')),
+                    'filesize': int_or_none(fmt.get('contentLength')),
+                    'format_id': itag,
+                    'format_note': fmt.get('qualityLabel') or quality,
+                    'fps': int_or_none(fmt.get('fps')),
+                    'height': int_or_none(fmt.get('height')),
+                    'quality': q(quality),
+                    'tbr': tbr,
+                    'url': fmt_url,
+                    'width': fmt.get('width'),
+                }
+                mimetype = fmt.get('mimeType')
+                if mimetype:
+                    mobj = re.match(
+                        r'((?:[^/]+)/(?:[^;]+))(?:;\s*codecs="([^"]+)")?', mimetype)
+                    if mobj:
+                        dct['ext'] = mimetype2ext(mobj.group(1))
+                        dct.update(parse_codecs(mobj.group(2)))
+                no_audio = dct.get('acodec') == 'none'
+                no_video = dct.get('vcodec') == 'none'
+                if no_audio:
+                    dct['vbr'] = tbr
+                if no_video:
+                    dct['abr'] = tbr
+                if no_audio or no_video:
+                    dct['downloader_options'] = {
+                        # Youtube throttles chunks >~10M
+                        'http_chunk_size': 10485760,
+                    }
+                    if dct.get('ext'):
+                        dct['container'] = dct['ext'] + '_dash'
+                formats.append(dct)
 
-        if self._downloader.params.get('youtube_include_dash_manifest', True):
-            dash_manifest_url = streaming_data.get('dashManifestUrl')
-            if dash_manifest_url:
-                for f in self._extract_mpd_formats(
-                        dash_manifest_url, video_id, fatal=False):
-                    itag = f['format_id']
-                    if itag in itags:
-                        continue
-                    if itag in itag_qualities:
-                        f['quality'] = q(itag_qualities[itag])
-                    filesize = int_or_none(self._search_regex(
-                        r'/clen/(\d+)', f.get('fragment_base_url')
-                        or f['url'], 'file size', default=None))
-                    if filesize:
-                        f['filesize'] = filesize
+            hls_manifest_url = streaming_data.get('hlsManifestUrl')
+            if hls_manifest_url:
+                for f in self._extract_m3u8_formats(
+                        hls_manifest_url, video_id, 'mp4', fatal=False):
+                    itag = self._search_regex(
+                        r'/itag/(\d+)', f['url'], 'itag', default=None)
+                    if itag:
+                        f['format_id'] = itag
                     formats.append(f)
 
-        if not formats:
-            if streaming_data.get('licenseInfos'):
-                raise ExtractorError(
-                    'This video is DRM protected.', expected=True)
-            pemr = try_get(
-                playability_status,
-                lambda x: x['errorScreen']['playerErrorMessageRenderer'],
-                dict) or {}
-            reason = get_text(pemr.get('reason')) or playability_status.get('reason')
-            subreason = pemr.get('subreason')
-            if subreason:
-                subreason = clean_html(get_text(subreason))
-                if subreason == 'The uploader has not made this video available in your country.':
-                    countries = microformat.get('availableCountries')
-                    if not countries:
-                        regions_allowed = search_meta('regionsAllowed')
-                        countries = regions_allowed.split(',') if regions_allowed else None
-                    self.raise_geo_restricted(
-                        subreason, countries)
-                reason += '\n' + subreason
-            if reason:
-                raise ExtractorError(reason, expected=True)
+            if self._downloader.params.get('youtube_include_dash_manifest', True):
+                dash_manifest_url = streaming_data.get('dashManifestUrl')
+                if dash_manifest_url:
+                    for f in self._extract_mpd_formats(
+                            dash_manifest_url, video_id, fatal=False):
+                        itag = f['format_id']
+                        if itag in itags:
+                            continue
+                        if itag in itag_qualities:
+                            f['quality'] = q(itag_qualities[itag])
+                        filesize = int_or_none(self._search_regex(
+                            r'/clen/(\d+)', f.get('fragment_base_url')
+                            or f['url'], 'file size', default=None))
+                        if filesize:
+                            f['filesize'] = filesize
+                        formats.append(f)
 
-        self._sort_formats(formats)
+            if not formats:
+                if streaming_data.get('licenseInfos'):
+                    raise ExtractorError(
+                        'This video is DRM protected.', expected=True)
+                pemr = try_get(
+                    playability_status,
+                    lambda x: x['errorScreen']['playerErrorMessageRenderer'],
+                    dict) or {}
+                reason = get_text(pemr.get('reason')) or playability_status.get('reason')
+                subreason = pemr.get('subreason')
+                if subreason:
+                    subreason = clean_html(get_text(subreason))
+                    if subreason == 'The uploader has not made this video available in your country.':
+                        countries = microformat.get('availableCountries')
+                        if not countries:
+                            regions_allowed = search_meta('regionsAllowed')
+                            countries = regions_allowed.split(',') if regions_allowed else None
+                        self.raise_geo_restricted(
+                            subreason, countries)
+                    reason += '\n' + subreason
+                if reason:
+                    raise ExtractorError(reason, expected=True)
+
+            self._sort_formats(formats)
 
         keywords = video_details.get('keywords') or []
         if not keywords and webpage:
